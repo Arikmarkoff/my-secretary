@@ -23,6 +23,24 @@ load_dotenv()
 
 app = FastAPI(title="Secretary Mini App API")
 
+
+# ── Start Telegram bot in background thread ──────────────────────────────────
+def _run_bot():
+    from bot import main as bot_main
+    try:
+        bot_main()
+    except Exception as e:
+        print(f"Bot error: {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    if os.getenv("BOT_TOKEN"):
+        import threading
+        t = threading.Thread(target=_run_bot, daemon=True)
+        t.start()
+        print("Telegram bot started in background")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
