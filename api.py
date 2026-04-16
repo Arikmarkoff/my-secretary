@@ -49,6 +49,30 @@ app.add_middleware(
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+OWNER_CHAT_ID = os.getenv("OWNER_CHAT_ID", "")
+
+
+async def _notify_owner(booking_id: int, payload) -> None:
+    if not BOT_TOKEN or not OWNER_CHAT_ID:
+        return
+    import httpx
+    text = (
+        f"📬 Новая заявка #{booking_id}\n\n"
+        f"👤 {payload.name}\n"
+        f"📞 {payload.phone}\n"
+        f"🏸 {payload.service}\n"
+        f"🗓 {payload.date} {payload.time}\n\n"
+        f"Проблема:\n{payload.problem}"
+    )
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": OWNER_CHAT_ID, "text": text},
+                timeout=5,
+            )
+    except Exception as e:
+        print(f"Notify error: {e}")
 
 
 # ── Telegram initData verification ─────────────────────────────────────────
@@ -112,6 +136,8 @@ async def create_booking(
             service=payload.service,
             tg_user_id=payload.tg_user_id,
         )
+        # Уведомление мастеру
+        await _notify_owner(booking_id, payload)
         return {"booking_id": booking_id}
     except Exception as e:
         print("BOOKING ERROR:", traceback.format_exc())
