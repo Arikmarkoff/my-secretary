@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
-import bridge from '@vkontakte/vk-bridge'
+import { useState } from 'react'
 
-import { MainButtonContext, BackButtonContext, setCachedUser } from './hooks/useTelegram'
+import { MainButtonContext, BackButtonContext } from './hooks/useTelegram'
 import Welcome from './screens/Welcome'
 import ServiceSelect from './screens/ServiceSelect'
 import ProblemDescription from './screens/ProblemDescription'
@@ -30,16 +29,6 @@ export default function App() {
   const [mainBtn, setMainBtn] = useState(null)   // { text, handler, enabled }
   const [backFn, setBackFn] = useState(null)
 
-  useEffect(() => {
-    bridge.send('VKWebAppInit')
-    bridge.send('VKWebAppGetUserInfo')
-      .then(user => setCachedUser({
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-      }))
-      .catch(() => {})
-  }, [])
 
   const update = (fields) => setData(prev => ({ ...prev, ...fields }))
 

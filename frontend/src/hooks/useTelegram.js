@@ -1,5 +1,4 @@
 import { useEffect, useRef, useContext, createContext } from 'react'
-import bridge from '@vkontakte/vk-bridge'
 
 // ── Contexts for in-layout buttons ───────────────────────────────────────────
 // VK Mini Apps не имеет нативных MainButton/BackButton — управляем через контекст
@@ -53,5 +52,5 @@ export const haptic = {
 // ── User data ─────────────────────────────────────────────────────────────────
 export const getUser      = () => _cachedUser
 export const getInitData  = () => ''
-export const closeMiniApp = () => bridge.send('VKWebAppClose', { status: 'success' }).catch(() => {})
+export const closeMiniApp = () => {}
 export const expandMiniApp = () => {}
