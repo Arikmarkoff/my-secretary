@@ -25,51 +25,74 @@ app = FastAPI(title="Secretary Mini App API")
 
 
 # ── Telegram bot via webhook ─────────────────────────────────────────────────
-_tg_app = None
+WEBHOOK_URL = "https://web-production-f95f16.up.railway.app/telegram-webhook"
+MINI_APP_URL = os.getenv("MINI_APP_URL", "https://web-production-f95f16.up.railway.app")
+
+
+async def _tg_send(chat_id, text, reply_markup=None):
+    import httpx
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json=payload, timeout=5,
+        )
+
 
 @app.on_event("startup")
 async def startup_event():
-    global _tg_app
-    token = os.getenv("BOT_TOKEN")
-    if not token:
+    if not BOT_TOKEN:
         print("BOT_TOKEN not set — Telegram bot disabled")
         return
     try:
-        from telegram import Bot
-        from telegram.ext import Application, CommandHandler, MessageHandler, filters
-        from bot import start, help_cmd, handle_web_app_data
-
-        _tg_app = Application.builder().token(token).build()
-        _tg_app.add_handler(CommandHandler("start", start))
-        _tg_app.add_handler(CommandHandler("help", help_cmd))
-        _tg_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
-        await _tg_app.initialize()
-        await _tg_app.start()
-
-        webhook_url = "https://web-production-f95f16.up.railway.app/telegram-webhook"
-        await Bot(token).set_webhook(webhook_url)
-        print(f"Webhook set: {webhook_url}")
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook",
+                json={"url": WEBHOOK_URL}, timeout=10,
+            )
+            print(f"Webhook registered: {r.json()}")
     except Exception as e:
-        print(f"Bot startup error: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    if _tg_app:
-        await _tg_app.stop()
-        await _tg_app.shutdown()
+        print(f"Webhook setup error: {e}")
 
 
 @app.post("/telegram-webhook")
 async def telegram_webhook(request: Request):
-    if not _tg_app:
-        return {"ok": False, "error": "bot not initialized"}
-    from telegram import Update
-    data = await request.json()
-    update = Update.de_json(data, _tg_app.bot)
-    await _tg_app.process_update(update)
+    try:
+        data = await request.json()
+        message = data.get("message") or data.get("edited_message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        text = (message.get("text") or "").strip()
+
+        if not chat_id:
+            return {"ok": True}
+
+        if text in ("/start", "/start@ArikMarkoff_bot"):
+            if MINI_APP_URL:
+                await _tg_send(
+                    chat_id,
+                    "Привет! 👋\n\nЯ помогу записаться на ремонт бадминтонной ракетки к мастеру Аркадию.\n\nНажмите кнопку ниже — это займёт меньше минуты 👇",
+                    reply_markup={
+                        "inline_keyboard": [[{
+                            "text": "🏸 Записаться на ремонт",
+                            "web_app": {"url": MINI_APP_URL},
+                        }]]
+                    },
+                )
+            else:
+                await _tg_send(chat_id, "Привет! 👋 Бот настраивается. Скоро здесь появится запись на ремонт ракеток.")
+
+        elif text in ("/help", "/help@ArikMarkoff_bot"):
+            await _tg_send(
+                chat_id,
+                "🏸 Мастер по ремонту ракеток — Аркадий Марков\n\nКоманды:\n/start — записаться на ремонт\n/help — помощь\n\nВопросы? Пишите прямо в чат.",
+            )
+    except Exception as e:
+        print(f"Webhook handler error: {e}")
+        import traceback
+        traceback.print_exc()
     return {"ok": True}
 
 app.add_middleware(
