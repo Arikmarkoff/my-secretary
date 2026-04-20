@@ -32,30 +32,40 @@ async def startup_event():
     global _tg_app
     token = os.getenv("BOT_TOKEN")
     if not token:
+        print("BOT_TOKEN not set — Telegram bot disabled")
         return
-    from telegram import Bot
-    from telegram.ext import Application, CommandHandler, MessageHandler, filters
-    from bot import start, help_cmd, handle_web_app_data
+    try:
+        from telegram import Bot
+        from telegram.ext import Application, CommandHandler, MessageHandler, filters
+        from bot import start, help_cmd, handle_web_app_data
 
-    _tg_app = Application.builder().token(token).build()
-    _tg_app.add_handler(CommandHandler("start", start))
-    _tg_app.add_handler(CommandHandler("help", help_cmd))
-    _tg_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
-    await _tg_app.initialize()
+        _tg_app = Application.builder().token(token).build()
+        _tg_app.add_handler(CommandHandler("start", start))
+        _tg_app.add_handler(CommandHandler("help", help_cmd))
+        _tg_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
+        await _tg_app.initialize()
+        await _tg_app.start()
 
-    webhook_url = f"https://web-production-f95f16.up.railway.app/telegram-webhook"
-    await Bot(token).set_webhook(webhook_url)
-    print(f"Webhook set: {webhook_url}")
+        webhook_url = "https://web-production-f95f16.up.railway.app/telegram-webhook"
+        await Bot(token).set_webhook(webhook_url)
+        print(f"Webhook set: {webhook_url}")
+    except Exception as e:
+        print(f"Bot startup error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     if _tg_app:
+        await _tg_app.stop()
         await _tg_app.shutdown()
 
 
 @app.post("/telegram-webhook")
 async def telegram_webhook(request: Request):
+    if not _tg_app:
+        return {"ok": False, "error": "bot not initialized"}
     from telegram import Update
     data = await request.json()
     update = Update.de_json(data, _tg_app.bot)
