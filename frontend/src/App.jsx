@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import { MainButtonContext, BackButtonContext } from './hooks/useTelegram'
 import Welcome from './screens/Welcome'
@@ -28,6 +28,15 @@ export default function App() {
   const [data, setData] = useState(initialData)
   const [mainBtn, setMainBtn] = useState(null)   // { text, handler, enabled }
   const [backFn, setBackFn] = useState(null)
+
+  useEffect(() => {
+    // Инициализация VK Bridge только внутри ВКонтакте
+    if (window.location.search.includes('vk_')) {
+      import('@vkontakte/vk-bridge').then(({ default: bridge }) => {
+        bridge.send('VKWebAppInit').catch(() => {})
+      }).catch(() => {})
+    }
+  }, [])
 
 
   const update = (fields) => setData(prev => ({ ...prev, ...fields }))
