@@ -24,22 +24,43 @@ load_dotenv()
 app = FastAPI(title="Secretary Mini App API")
 
 
-# ── Start Telegram bot in background thread ──────────────────────────────────
-def _run_bot():
-    from bot import main as bot_main
-    try:
-        bot_main()
-    except Exception as e:
-        print(f"Bot error: {e}")
-
+# ── Telegram bot via webhook ─────────────────────────────────────────────────
+_tg_app = None
 
 @app.on_event("startup")
 async def startup_event():
-    if os.getenv("BOT_TOKEN"):
-        import threading
-        t = threading.Thread(target=_run_bot, daemon=True)
-        t.start()
-        print("Telegram bot started in background")
+    global _tg_app
+    token = os.getenv("BOT_TOKEN")
+    if not token:
+        return
+    from telegram import Bot
+    from telegram.ext import Application, CommandHandler, MessageHandler, filters
+    from bot import start, help_cmd, handle_web_app_data
+
+    _tg_app = Application.builder().token(token).build()
+    _tg_app.add_handler(CommandHandler("start", start))
+    _tg_app.add_handler(CommandHandler("help", help_cmd))
+    _tg_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
+    await _tg_app.initialize()
+
+    webhook_url = f"https://web-production-f95f16.up.railway.app/telegram-webhook"
+    await Bot(token).set_webhook(webhook_url)
+    print(f"Webhook set: {webhook_url}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if _tg_app:
+        await _tg_app.shutdown()
+
+
+@app.post("/telegram-webhook")
+async def telegram_webhook(request: Request):
+    from telegram import Update
+    data = await request.json()
+    update = Update.de_json(data, _tg_app.bot)
+    await _tg_app.process_update(update)
+    return {"ok": True}
 
 app.add_middleware(
     CORSMiddleware,
